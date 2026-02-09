@@ -1,6 +1,9 @@
 # Use Node.js 18 Alpine
 FROM node:18-alpine
 
+# Install Ghostscript for PDF compression
+RUN apk add --no-cache ghostscript
+
 # Set working directory
 WORKDIR /app
 

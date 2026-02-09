@@ -2,6 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const { PDFDocument } = require('pdf-lib');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -373,34 +377,53 @@ app.post('/images-to-pdf', imageUpload.array('images', 50), async (req, res) => 
   }
 });
 
-// Compress PDF endpoint
+// Compress PDF endpoint using Ghostscript
 app.post('/compress-pdf', upload.single('file'), async (req, res) => {
+  const tempDir = os.tmpdir();
+  const inputPath = path.join(tempDir, `input-${Date.now()}.pdf`);
+  const outputPath = path.join(tempDir, `output-${Date.now()}.pdf`);
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No PDF file provided' });
     }
 
     const originalSize = req.file.size;
-    console.log(`[PDF-SERVICE] Compressing PDF: ${req.file.originalname} (${(originalSize / 1024).toFixed(2)} KB)`);
+    console.log(`[PDF-SERVICE] Compressing PDF with Ghostscript: ${req.file.originalname} (${(originalSize / 1024).toFixed(2)} KB)`);
 
-    // Load the PDF
-    const pdfDoc = await PDFDocument.load(req.file.buffer, {
-      ignoreEncryption: true
-    });
+    // Write input file to temp directory
+    fs.writeFileSync(inputPath, req.file.buffer);
 
-    // Save with compression options
-    // pdf-lib applies Object Stream and Content Stream compression by default
-    const compressedPdfBytes = await pdfDoc.save({
-      useObjectStreams: true, // Compress objects into streams
-      addDefaultPage: false,
-      objectsPerTick: 50
-    });
+    // Ghostscript compression command
+    // -dPDFSETTINGS options: /screen (72dpi), /ebook (150dpi), /printer (300dpi), /prepress (300dpi)
+    const gsCommand = `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outputPath}" "${inputPath}"`;
+    
+    try {
+      execSync(gsCommand, { timeout: 120000 }); // 2 minute timeout
+    } catch (gsError) {
+      console.error('[PDF-SERVICE] Ghostscript error:', gsError.message);
+      throw new Error('Ghostscript compression failed');
+    }
 
-    const compressedSize = compressedPdfBytes.length;
-    const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+    // Read compressed file
+    const compressedBuffer = fs.readFileSync(outputPath);
+    const compressedSize = compressedBuffer.length;
+    const savings = originalSize - compressedSize;
+    const compressionRatio = (savings / originalSize * 100).toFixed(1);
+
+    // Get page count from compressed PDF
+    const pdfDoc = await PDFDocument.load(compressedBuffer);
     const pageCount = pdfDoc.getPageCount();
 
-    console.log(`[PDF-SERVICE] Compression complete. Original: ${(originalSize / 1024).toFixed(2)} KB, Compressed: ${(compressedSize / 1024).toFixed(2)} KB, Reduction: ${compressionRatio}%`);
+    // Determine result message
+    let resultMessage;
+    if (savings > 0) {
+      resultMessage = `Reduced by ${(savings / 1024).toFixed(2)} KB (${compressionRatio}%)`;
+    } else {
+      resultMessage = 'PDF is already optimized';
+    }
+
+    console.log(`[PDF-SERVICE] Ghostscript compression: ${(originalSize / 1024).toFixed(2)} KB → ${(compressedSize / 1024).toFixed(2)} KB (${resultMessage})`);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -409,16 +432,25 @@ app.post('/compress-pdf', upload.single('file'), async (req, res) => {
       'X-Original-Size': originalSize,
       'X-Compressed-Size': compressedSize,
       'X-Compression-Ratio': compressionRatio,
-      'X-Total-Pages': pageCount
+      'X-Total-Pages': pageCount,
+      'X-Result-Message': resultMessage
     });
 
-    res.send(Buffer.from(compressedPdfBytes));
+    res.send(compressedBuffer);
   } catch (error) {
     console.error('[PDF-SERVICE] Error compressing PDF:', error);
     res.status(500).json({
       error: 'Failed to compress PDF',
       details: error.message
     });
+  } finally {
+    // Clean up temp files
+    try {
+      if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch (cleanupError) {
+      console.error('[PDF-SERVICE] Cleanup error:', cleanupError.message);
+    }
   }
 });
 

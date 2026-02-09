@@ -169,31 +169,31 @@ function App() {
     { 
       id: 'merge-pdf',
       label: 'Merge PDF', 
-      icon: <IconFileTypePdf className="h-5 w-5 shrink-0 text-indigo-400" />,
+      icon: <IconFileTypePdf className="h-7 w-7 shrink-0 text-indigo-400" />,
       description: 'Combine multiple PDFs'
     },
     { 
       id: 'split-pdf',
       label: 'Split PDF', 
-      icon: <IconCut className="h-5 w-5 shrink-0 text-indigo-400" />,
+      icon: <IconCut className="h-7 w-7 shrink-0 text-indigo-400" />,
       description: 'Extract specific pages'
     },
     { 
       id: 'pdf-info',
       label: 'PDF Info', 
-      icon: <IconInfoCircle className="h-5 w-5 shrink-0 text-indigo-400" />,
+      icon: <IconInfoCircle className="h-7 w-7 shrink-0 text-indigo-400" />,
       description: 'View document details'
     },
     { 
       id: 'images-to-pdf',
       label: 'Images to PDF', 
-      icon: <IconPhoto className="h-5 w-5 shrink-0 text-indigo-400" />,
+      icon: <IconPhoto className="h-7 w-7 shrink-0 text-indigo-400" />,
       description: 'Convert images to PDF'
     },
     { 
       id: 'compress-pdf',
       label: 'Compress PDF', 
-      icon: <IconFileZip className="h-5 w-5 shrink-0 text-indigo-400" />,
+      icon: <IconFileZip className="h-7 w-7 shrink-0 text-indigo-400" />,
       description: 'Reduce PDF file size'
     },
   ];
@@ -202,19 +202,19 @@ function App() {
     { 
       id: 'compress-image',
       label: 'Compress', 
-      icon: <IconPhotoDown className="h-5 w-5 shrink-0 text-pink-400" />,
+      icon: <IconPhotoDown className="h-7 w-7 shrink-0 text-pink-400" />,
       description: 'Reduce file size'
     },
     { 
       id: 'resize-image',
       label: 'Resize', 
-      icon: <IconResize className="h-5 w-5 shrink-0 text-pink-400" />,
+      icon: <IconResize className="h-7 w-7 shrink-0 text-pink-400" />,
       description: 'Change dimensions'
     },
     { 
       id: 'convert-image',
       label: 'Convert', 
-      icon: <IconTransform className="h-5 w-5 shrink-0 text-pink-400" />,
+      icon: <IconTransform className="h-7 w-7 shrink-0 text-pink-400" />,
       description: 'Change format'
     },
   ];
