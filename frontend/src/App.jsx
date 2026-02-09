@@ -1,14 +1,30 @@
 import { useState } from 'react';
-import FileUploader from './components/FileUploader';
+import { WavyBackground } from './components/ui/wavy-background';
+import { FileUpload } from './components/ui/file-upload';
+import { Sidebar, SidebarBody, SidebarLink, SidebarLinkActive } from './components/ui/sidebar';
+import { motion } from 'framer-motion';
+import { 
+  IconFileTypePdf,
+  IconCut,
+  IconInfoCircle,
+  IconPhotoDown,
+  IconResize,
+  IconTransform,
+  IconPhoto,
+  IconFileZip,
+} from '@tabler/icons-react';
 import { 
   mergePDFs, 
   splitPDF, 
   getPDFInfo,
+  imagesToPdf,
+  compressPdf,
   compressImage, 
   resizeImage,
   convertImage,
   downloadFile 
 } from './services/api';
+import { cn } from './lib/utils';
 
 function App() {
   const [activeTab, setActiveTab] = useState('merge-pdf');
@@ -17,6 +33,7 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // PDF Split specific state
   const [pageRanges, setPageRanges] = useState('');
@@ -87,6 +104,19 @@ function App() {
           setLoading(false);
           return;
 
+        case 'images-to-pdf':
+          if (selectedFiles.length === 0) {
+            throw new Error('Please select at least 1 image to convert');
+          }
+          response = await imagesToPdf(selectedFiles, onUploadProgress);
+          filename = 'images-to-pdf.pdf';
+          break;
+
+        case 'compress-pdf':
+          response = await compressPdf(selectedFiles[0], onUploadProgress);
+          filename = `compressed-${selectedFiles[0].name}`;
+          break;
+
         case 'compress-image':
           response = await compressImage(selectedFiles[0], quality, onUploadProgress);
           filename = `compressed-${selectedFiles[0].name}`;
@@ -122,7 +152,7 @@ function App() {
         
         setResult({
           type: 'download',
-          message: `✅ Success! File downloaded: ${filename}`,
+          message: `Success! File downloaded: ${filename}`,
           headers: response.headers
         });
       }
@@ -135,231 +165,341 @@ function App() {
     }
   };
 
-  const tabs = [
-    { id: 'merge-pdf', label: '🔗 Merge PDF', category: 'pdf' },
-    { id: 'split-pdf', label: '✂️ Split PDF', category: 'pdf' },
-    { id: 'pdf-info', label: 'ℹ️ PDF Info', category: 'pdf' },
-    { id: 'compress-image', label: '🗜️ Compress Image', category: 'image' },
-    { id: 'resize-image', label: '📏 Resize Image', category: 'image' },
-    { id: 'convert-image', label: '🔄 Convert Image', category: 'image' },
+  const pdfLinks = [
+    { 
+      id: 'merge-pdf',
+      label: 'Merge PDF', 
+      icon: <IconFileTypePdf className="h-5 w-5 shrink-0 text-indigo-400" />,
+      description: 'Combine multiple PDFs'
+    },
+    { 
+      id: 'split-pdf',
+      label: 'Split PDF', 
+      icon: <IconCut className="h-5 w-5 shrink-0 text-indigo-400" />,
+      description: 'Extract specific pages'
+    },
+    { 
+      id: 'pdf-info',
+      label: 'PDF Info', 
+      icon: <IconInfoCircle className="h-5 w-5 shrink-0 text-indigo-400" />,
+      description: 'View document details'
+    },
+    { 
+      id: 'images-to-pdf',
+      label: 'Images to PDF', 
+      icon: <IconPhoto className="h-5 w-5 shrink-0 text-indigo-400" />,
+      description: 'Convert images to PDF'
+    },
+    { 
+      id: 'compress-pdf',
+      label: 'Compress PDF', 
+      icon: <IconFileZip className="h-5 w-5 shrink-0 text-indigo-400" />,
+      description: 'Reduce PDF file size'
+    },
   ];
 
-  const pdfTabs = tabs.filter(t => t.category === 'pdf');
-  const imageTabs = tabs.filter(t => t.category === 'image');
+  const imageLinks = [
+    { 
+      id: 'compress-image',
+      label: 'Compress', 
+      icon: <IconPhotoDown className="h-5 w-5 shrink-0 text-pink-400" />,
+      description: 'Reduce file size'
+    },
+    { 
+      id: 'resize-image',
+      label: 'Resize', 
+      icon: <IconResize className="h-5 w-5 shrink-0 text-pink-400" />,
+      description: 'Change dimensions'
+    },
+    { 
+      id: 'convert-image',
+      label: 'Convert', 
+      icon: <IconTransform className="h-5 w-5 shrink-0 text-pink-400" />,
+      description: 'Change format'
+    },
+  ];
+
+  const currentTool = [...pdfLinks, ...imageLinks].find(t => t.id === activeTab);
+
+  const Logo = () => (
+    <a href="#" className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal text-white">
+      <div className="h-6 w-7 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-gradient-to-br from-indigo-500 to-purple-600" />
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="font-bold text-xl whitespace-pre text-white"
+      >
+        ProPDF
+      </motion.span>
+    </a>
+  );
+
+  const LogoIcon = () => (
+    <a href="#" className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal text-white">
+      <div className="h-6 w-7 shrink-0 rounded-tl-lg rounded-tr-sm rounded-br-lg rounded-bl-sm bg-gradient-to-br from-indigo-500 to-purple-600" />
+    </a>
+  );
 
   return (
-    <div className="min-h-screen py-8 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="text-center mb-12 animate-fade-in">
-          <h1 className="text-5xl md:text-6xl font-extrabold mb-4">
-            <span className="text-gradient">ProPDF</span>
-          </h1>
-          <p className="text-xl text-slate-400 mb-2">
-            Professional PDF & Image Processing
-          </p>
-          <p className="text-sm text-slate-500">
-            Powered by Microservices Architecture
-          </p>
-        </header>
+    <div className={cn(
+      "flex w-full flex-1 flex-col overflow-hidden md:flex-row",
+      "h-screen"
+    )}>
+      {/* Wavy Background */}
+      <WavyBackground
+        className="fixed inset-0 -z-10"
+        containerClassName="fixed inset-0 -z-10"
+        colors={["#6366f1", "#8b5cf6", "#a855f7", "#ec4899", "#22d3ee"]}
+        waveWidth={50}
+        backgroundFill="#0a0a1a"
+        blur={10}
+        speed="slow"
+        waveOpacity={0.5}
+      />
 
-        {/* Main Card */}
-        <div className="card animate-slide-up">
-          {/* Category Tabs */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3">📄 PDF Tools</h3>
-              <div className="space-y-2">
-                {pdfTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`w-full tab ${activeTab === tab.id ? 'tab-active' : 'tab-inactive'}`}
-                  >
-                    {tab.label}
-                  </button>
+      {/* Aceternity Sidebar */}
+      <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
+        <SidebarBody className="justify-between gap-10">
+          <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto">
+            {sidebarOpen ? <Logo /> : <LogoIcon />}
+            
+            {/* PDF Tools */}
+            <div className="mt-8">
+              {sidebarOpen && (
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 px-3">
+                  PDF Tools
+                </p>
+              )}
+              <div className="flex flex-col gap-2">
+                {pdfLinks.map((link) => (
+                  activeTab === link.id ? (
+                    <SidebarLinkActive 
+                      key={link.id} 
+                      link={link} 
+                      onClick={() => handleTabChange(link.id)}
+                    />
+                  ) : (
+                    <SidebarLink 
+                      key={link.id} 
+                      link={link} 
+                      onClick={() => handleTabChange(link.id)}
+                    />
+                  )
                 ))}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3">🖼️ Image Tools</h3>
-              <div className="space-y-2">
-                {imageTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`w-full tab ${activeTab === tab.id ? 'tab-active' : 'tab-inactive'}`}
-                  >
-                    {tab.label}
-                  </button>
+            {/* Image Tools */}
+            <div className="mt-6">
+              {sidebarOpen && (
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 px-3">
+                  Image Tools
+                </p>
+              )}
+              <div className="flex flex-col gap-2">
+                {imageLinks.map((link) => (
+                  activeTab === link.id ? (
+                    <SidebarLinkActive 
+                      key={link.id} 
+                      link={link} 
+                      onClick={() => handleTabChange(link.id)}
+                    />
+                  ) : (
+                    <SidebarLink 
+                      key={link.id} 
+                      link={link} 
+                      onClick={() => handleTabChange(link.id)}
+                    />
+                  )
                 ))}
               </div>
             </div>
           </div>
 
-          {/* File Uploader */}
-          <div className="mb-6">
-            <FileUploader
-              onFilesSelected={handleFilesSelected}
-              accept={
-                activeTab.includes('pdf') 
-                  ? { 'application/pdf': ['.pdf'] }
-                  : { 'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp'] }
-              }
-              multiple={activeTab === 'merge-pdf'}
-              maxFiles={activeTab === 'merge-pdf' ? 20 : 1}
-              label={
-                activeTab === 'merge-pdf' 
-                  ? 'Select multiple PDFs to merge'
-                  : activeTab.includes('pdf')
-                  ? 'Select a PDF file'
-                  : 'Select an image file'
-              }
-            />
-          </div>
-
-          {/* Operation-specific Options */}
-          {activeTab === 'split-pdf' && (
-            <div className="mb-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-              <label className="block text-sm font-semibold text-slate-300 mb-2">
-                Page Ranges
-              </label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="e.g., 1-3,5,7-9"
-                value={pageRanges}
-                onChange={(e) => setPageRanges(e.target.value)}
-              />
-              <p className="text-xs text-slate-500 mt-2">
-                Use commas to separate individual pages or ranges. Example: "1-3,5,7-9"
+          {/* Footer */}
+          <div className="border-t border-white/10 pt-4">
+            {sidebarOpen && (
+              <p className="text-xs text-slate-500 text-center">
+                Powered by Microservices
               </p>
-            </div>
-          )}
+            )}
+          </div>
+        </SidebarBody>
+      </Sidebar>
 
-          {(activeTab === 'compress-image' || activeTab === 'resize-image' || activeTab === 'convert-image') && (
-            <div className="mb-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700 space-y-4">
-              <div>
+      {/* Main Content */}
+      <main className="flex flex-1 overflow-auto">
+        <div className="flex h-full w-full flex-1 flex-col gap-4 rounded-tl-2xl border-l border-white/10 bg-slate-900/40 backdrop-blur-sm p-6 md:p-10">
+          {/* Header */}
+          <header className="mb-4">
+            <h1 className="text-4xl font-bold mb-2">
+              <span className="text-gradient">{currentTool?.label}</span>
+            </h1>
+            <p className="text-slate-400">{currentTool?.description}</p>
+          </header>
+
+          {/* Main Card */}
+          <div className="glass-card mb-6">
+            {/* Full-Width File Upload */}
+            <div className="w-full min-h-80 border border-dashed border-indigo-500/30 bg-slate-900/30 rounded-xl overflow-hidden mb-6">
+              <FileUpload onChange={handleFilesSelected} />
+            </div>
+
+            {/* Operation-specific Options */}
+            {activeTab === 'split-pdf' && (
+              <div className="options-panel mb-6">
                 <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  Quality: {quality}%
+                  📑 Page Ranges
                 </label>
                 <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  value={quality}
-                  onChange={(e) => setQuality(e.target.value)}
-                  className="w-full accent-primary-500"
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g., 1-3,5,7-9"
+                  value={pageRanges}
+                  onChange={(e) => setPageRanges(e.target.value)}
                 />
+                <p className="text-xs text-slate-500 mt-2">
+                  Use commas to separate individual pages or ranges
+                </p>
               </div>
-
-              {activeTab === 'resize-image' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Width (px)
-                    </label>
-                    <input
-                      type="number"
-                      className="input-field"
-                      placeholder="Auto"
-                      value={width}
-                      onChange={(e) => setWidth(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Height (px)
-                    </label>
-                    <input
-                      type="number"
-                      className="input-field"
-                      placeholder="Auto"
-                      value={height}
-                      onChange={(e) => setHeight(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'convert-image' && (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">
-                    Output Format
-                  </label>
-                  <select
-                    className="input-field"
-                    value={imageFormat}
-                    onChange={(e) => setImageFormat(e.target.value)}
-                  >
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                    <option value="webp">WebP</option>
-                    <option value="avif">AVIF</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Process Button */}
-          <button
-            onClick={handleProcess}
-            disabled={loading || selectedFiles.length === 0}
-            className={`w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed ${loading ? 'animate-pulse' : ''}`}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing... {progress}%
-              </span>
-            ) : (
-              'Process Files'
             )}
-          </button>
+
+            {(activeTab === 'compress-image' || activeTab === 'resize-image' || activeTab === 'convert-image') && (
+              <div className="options-panel mb-6 space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">
+                    🎚️ Quality: <span className="text-indigo-400">{quality}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={quality}
+                    onChange={(e) => setQuality(e.target.value)}
+                  />
+                </div>
+
+                {activeTab === 'resize-image' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">
+                        ↔️ Width (px)
+                      </label>
+                      <input
+                        type="number"
+                        className="input-field"
+                        placeholder="Auto"
+                        value={width}
+                        onChange={(e) => setWidth(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">
+                        ↕️ Height (px)
+                      </label>
+                      <input
+                        type="number"
+                        className="input-field"
+                        placeholder="Auto"
+                        value={height}
+                        onChange={(e) => setHeight(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'convert-image' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
+                      📁 Output Format
+                    </label>
+                    <select
+                      className="input-field"
+                      value={imageFormat}
+                      onChange={(e) => setImageFormat(e.target.value)}
+                    >
+                      <option value="jpeg">JPEG</option>
+                      <option value="png">PNG</option>
+                      <option value="webp">WebP</option>
+                      <option value="avif">AVIF</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Process Button */}
+            <button
+              onClick={handleProcess}
+              disabled={loading || selectedFiles.length === 0}
+              className={`w-full btn btn-primary text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none ${loading ? 'animate-pulse' : ''}`}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-3">
+                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing... {progress}%
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  ⚡ Process Files
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Results */}
           {result && (
-            <div className="mt-6 p-4 bg-green-500/10 border border-green-500/50 rounded-lg animate-fade-in">
+            <div className="result-success animate-[fadeIn_0.3s_ease-out]">
               {result.type === 'download' && (
                 <div>
-                  <p className="text-green-400 font-semibold">{result.message}</p>
+                  <p className="text-green-400 font-semibold flex items-center gap-2">
+                    <span className="text-xl">✅</span> {result.message}
+                  </p>
                   {result.headers && (
-                    <div className="mt-2 text-xs text-slate-400 space-y-1">
-                      {result.headers['x-total-pages'] && <p>Total Pages: {result.headers['x-total-pages']}</p>}
-                      {result.headers['x-compression-ratio'] && <p>Compression: {result.headers['x-compression-ratio']}% reduction</p>}
+                    <div className="mt-3 flex gap-4 text-sm">
+                      {result.headers['x-total-pages'] && (
+                        <span className="text-slate-400">
+                          📄 {result.headers['x-total-pages']} pages
+                        </span>
+                      )}
+                      {result.headers['x-compression-ratio'] && (
+                        <span className="text-slate-400">
+                          📉 {result.headers['x-compression-ratio']}% smaller
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
               {result.type === 'info' && (
-                <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-white mb-3">📋 PDF Information</h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400">Filename</p>
-                      <p className="text-white font-semibold">{result.data.filename}</p>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>📋</span> PDF Information
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="info-card">
+                      <p className="text-slate-400 text-xs mb-1">Filename</p>
+                      <p className="text-white font-semibold text-sm truncate">{result.data.filename}</p>
                     </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400">File Size</p>
-                      <p className="text-white font-semibold">{result.data.fileSizeKB} KB</p>
+                    <div className="info-card">
+                      <p className="text-slate-400 text-xs mb-1">File Size</p>
+                      <p className="text-white font-semibold text-sm">{result.data.fileSizeKB} KB</p>
                     </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400">Pages</p>
-                      <p className="text-white font-semibold">{result.data.pageCount}</p>
+                    <div className="info-card">
+                      <p className="text-slate-400 text-xs mb-1">Pages</p>
+                      <p className="text-white font-semibold text-sm">{result.data.pageCount}</p>
                     </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400">Page Size</p>
-                      <p className="text-white font-semibold">{result.data.pageSize.width}×{result.data.pageSize.height} pts</p>
+                    <div className="info-card">
+                      <p className="text-slate-400 text-xs mb-1">Page Size</p>
+                      <p className="text-white font-semibold text-sm">{result.data.pageSize.width}×{result.data.pageSize.height}</p>
                     </div>
-                    <div className="bg-slate-800 p-3 rounded-lg col-span-2">
-                      <p className="text-slate-400">Title</p>
-                      <p className="text-white font-semibold">{result.data.title}</p>
+                    <div className="info-card col-span-2">
+                      <p className="text-slate-400 text-xs mb-1">Title</p>
+                      <p className="text-white font-semibold text-sm">{result.data.title || 'Untitled'}</p>
                     </div>
                   </div>
                 </div>
@@ -369,18 +509,14 @@ function App() {
 
           {/* Errors */}
           {error && (
-            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg animate-fade-in">
-              <p className="text-red-400 font-semibold">❌ {error}</p>
+            <div className="result-error animate-[fadeIn_0.3s_ease-out]">
+              <p className="text-red-400 font-semibold flex items-center gap-2">
+                <span className="text-xl">❌</span> {error}
+              </p>
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <footer className="mt-12 text-center text-sm text-slate-500">
-          <p>Built with React, Node.js, Docker & Microservices</p>
-          <p className="mt-2">Image Service • PDF Service • API Gateway</p>
-        </footer>
-      </div>
+      </main>
     </div>
   );
 }

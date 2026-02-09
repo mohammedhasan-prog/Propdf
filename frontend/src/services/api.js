@@ -67,6 +67,38 @@ export const getPDFInfo = async (file) => {
   return response.data;
 };
 
+export const imagesToPdf = async (files, onUploadProgress) => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('images', file);
+  });
+
+  const response = await api.post('/api/process/images-to-pdf', formData, {
+    responseType: 'blob',
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress,
+  });
+
+  return response;
+};
+
+export const compressPdf = async (file, onUploadProgress) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post('/api/process/compress-pdf', formData, {
+    responseType: 'blob',
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress,
+  });
+
+  return response;
+};
+
 // Image Operations
 export const compressImage = async (file, quality, onUploadProgress) => {
   const formData = new FormData();

@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 4001;
 
-// Configure multer for memory storage
+// Configure multer for memory storage (PDF files)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -17,6 +17,22 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only PDF files are allowed.'));
+    }
+  }
+});
+
+// Configure multer for image uploads
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit per image
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, WEBP, and GIF are allowed.'));
     }
   }
 });
@@ -242,6 +258,169 @@ function parsePageRanges(rangesStr, maxPages) {
 
   return Array.from(pageNumbers).sort((a, b) => a - b);
 }
+
+// Images to PDF endpoint
+app.post('/images-to-pdf', imageUpload.array('images', 50), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No image files provided' });
+    }
+
+    console.log(`[PDF-SERVICE] Converting ${req.files.length} images to PDF`);
+
+    // Create a new PDF document
+    const pdfDoc = await PDFDocument.create();
+
+    // Process each uploaded image
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      console.log(`[PDF-SERVICE] Processing image ${i + 1}/${req.files.length}: ${file.originalname}`);
+
+      try {
+        let image;
+        
+        // Embed image based on type
+        if (file.mimetype === 'image/jpeg') {
+          image = await pdfDoc.embedJpg(file.buffer);
+        } else if (file.mimetype === 'image/png') {
+          image = await pdfDoc.embedPng(file.buffer);
+        } else {
+          // For other formats, skip with warning
+          console.log(`[PDF-SERVICE] Skipping unsupported format: ${file.mimetype}`);
+          continue;
+        }
+
+        // Get image dimensions
+        const imgWidth = image.width;
+        const imgHeight = image.height;
+
+        // Create page with image dimensions (or A4 if larger)
+        const maxWidth = 595; // A4 width in points
+        const maxHeight = 842; // A4 height in points
+
+        let pageWidth, pageHeight, drawWidth, drawHeight;
+
+        // Scale to fit A4 if image is too large
+        if (imgWidth > maxWidth || imgHeight > maxHeight) {
+          const scaleX = maxWidth / imgWidth;
+          const scaleY = maxHeight / imgHeight;
+          const scale = Math.min(scaleX, scaleY);
+          
+          drawWidth = imgWidth * scale;
+          drawHeight = imgHeight * scale;
+          pageWidth = maxWidth;
+          pageHeight = maxHeight;
+        } else {
+          // Use image dimensions for page size
+          pageWidth = imgWidth;
+          pageHeight = imgHeight;
+          drawWidth = imgWidth;
+          drawHeight = imgHeight;
+        }
+
+        // Add a page
+        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+
+        // Center the image on the page
+        const x = (pageWidth - drawWidth) / 2;
+        const y = (pageHeight - drawHeight) / 2;
+
+        // Draw the image
+        page.drawImage(image, {
+          x,
+          y,
+          width: drawWidth,
+          height: drawHeight,
+        });
+
+        console.log(`[PDF-SERVICE] Added image ${file.originalname} as page ${i + 1}`);
+      } catch (imgError) {
+        console.error(`[PDF-SERVICE] Error processing ${file.originalname}:`, imgError.message);
+        return res.status(400).json({
+          error: `Failed to process ${file.originalname}`,
+          details: imgError.message
+        });
+      }
+    }
+
+    // Check if any pages were added
+    if (pdfDoc.getPageCount() === 0) {
+      return res.status(400).json({ error: 'No valid images could be converted' });
+    }
+
+    // Save the PDF
+    const pdfBytes = await pdfDoc.save();
+    const totalPages = pdfDoc.getPageCount();
+
+    console.log(`[PDF-SERVICE] Conversion complete. Total pages: ${totalPages}, Size: ${(pdfBytes.length / 1024).toFixed(2)} KB`);
+
+    // Set response headers
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="images-to-pdf.pdf"',
+      'Content-Length': pdfBytes.length,
+      'X-Total-Pages': totalPages,
+      'X-Source-Images': req.files.length
+    });
+
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('[PDF-SERVICE] Error converting images to PDF:', error);
+    res.status(500).json({
+      error: 'Failed to convert images to PDF',
+      details: error.message
+    });
+  }
+});
+
+// Compress PDF endpoint
+app.post('/compress-pdf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No PDF file provided' });
+    }
+
+    const originalSize = req.file.size;
+    console.log(`[PDF-SERVICE] Compressing PDF: ${req.file.originalname} (${(originalSize / 1024).toFixed(2)} KB)`);
+
+    // Load the PDF
+    const pdfDoc = await PDFDocument.load(req.file.buffer, {
+      ignoreEncryption: true
+    });
+
+    // Save with compression options
+    // pdf-lib applies Object Stream and Content Stream compression by default
+    const compressedPdfBytes = await pdfDoc.save({
+      useObjectStreams: true, // Compress objects into streams
+      addDefaultPage: false,
+      objectsPerTick: 50
+    });
+
+    const compressedSize = compressedPdfBytes.length;
+    const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+    const pageCount = pdfDoc.getPageCount();
+
+    console.log(`[PDF-SERVICE] Compression complete. Original: ${(originalSize / 1024).toFixed(2)} KB, Compressed: ${(compressedSize / 1024).toFixed(2)} KB, Reduction: ${compressionRatio}%`);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="compressed-${req.file.originalname}"`,
+      'Content-Length': compressedSize,
+      'X-Original-Size': originalSize,
+      'X-Compressed-Size': compressedSize,
+      'X-Compression-Ratio': compressionRatio,
+      'X-Total-Pages': pageCount
+    });
+
+    res.send(Buffer.from(compressedPdfBytes));
+  } catch (error) {
+    console.error('[PDF-SERVICE] Error compressing PDF:', error);
+    res.status(500).json({
+      error: 'Failed to compress PDF',
+      details: error.message
+    });
+  }
+});
 
 // Error handling middleware
 app.use((error, req, res, next) => {

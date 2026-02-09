@@ -49,7 +49,9 @@ app.get('/', (req, res) => {
       pdf: {
         merge: 'POST /api/process/merge-pdf',
         split: 'POST /api/process/split-pdf',
-        info: 'POST /api/process/pdf-info'
+        info: 'POST /api/process/pdf-info',
+        imagesToPdf: 'POST /api/process/images-to-pdf',
+        compress: 'POST /api/process/compress-pdf'
       },
       image: {
         compress: 'POST /api/process/compress-image',
@@ -172,6 +174,83 @@ app.post('/api/process/pdf-info', upload.single('file'), async (req, res) => {
     res.json(response.data);
   } catch (error) {
     handleServiceError(error, 'PDF info', res);
+  }
+});
+
+// Images to PDF
+app.post('/api/process/images-to-pdf', upload.array('images', 50), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No image files provided' });
+    }
+
+    console.log(`[GATEWAY] Forwarding images-to-pdf request for ${req.files.length} images to PDF service`);
+
+    const formData = new FormData();
+    
+    req.files.forEach((file) => {
+      formData.append('images', file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype
+      });
+    });
+
+    const response = await axios.post(`${PDF_SERVICE_URL}/images-to-pdf`, formData, {
+      headers: formData.getHeaders(),
+      responseType: 'arraybuffer',
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    });
+
+    res.set({
+      'Content-Type': response.headers['content-type'],
+      'Content-Disposition': response.headers['content-disposition'],
+      'X-Total-Pages': response.headers['x-total-pages'],
+      'X-Source-Images': response.headers['x-source-images']
+    });
+
+    console.log(`[GATEWAY] Images to PDF successful, returning ${response.data.length} bytes`);
+    res.send(response.data);
+  } catch (error) {
+    handleServiceError(error, 'Images to PDF', res);
+  }
+});
+
+// Compress PDF
+app.post('/api/process/compress-pdf', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No PDF file provided' });
+    }
+
+    console.log(`[GATEWAY] Forwarding compress-pdf request to PDF service`);
+
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype
+    });
+
+    const response = await axios.post(`${PDF_SERVICE_URL}/compress-pdf`, formData, {
+      headers: formData.getHeaders(),
+      responseType: 'arraybuffer',
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    });
+
+    res.set({
+      'Content-Type': response.headers['content-type'],
+      'Content-Disposition': response.headers['content-disposition'],
+      'X-Original-Size': response.headers['x-original-size'],
+      'X-Compressed-Size': response.headers['x-compressed-size'],
+      'X-Compression-Ratio': response.headers['x-compression-ratio'],
+      'X-Total-Pages': response.headers['x-total-pages']
+    });
+
+    console.log(`[GATEWAY] PDF compression successful, ${response.headers['x-compression-ratio']}% reduction`);
+    res.send(response.data);
+  } catch (error) {
+    handleServiceError(error, 'PDF compression', res);
   }
 });
 
