@@ -21,7 +21,7 @@ const upload = multer({
 
 // Middleware
 app.use(cors({
-  origin: '*', // In production, configure specific origins
+  origin: process.env.FRONTEND_URL || '*', // Use env var in production
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
