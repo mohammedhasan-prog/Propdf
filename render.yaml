@@ -1,0 +1,73 @@
+services:
+  # PDF Service
+  - type: web
+    name: propdf-pdf-service
+    env: docker
+    dockerContext: .
+    dockerfilePath: pdf-service/Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "4001"
+    healthCheckPath: /health
+
+  # Image Service
+  - type: web
+    name: propdf-image-service
+    env: docker
+    dockerContext: .
+    dockerfilePath: image-service/Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "4002"
+    healthCheckPath: /health
+
+  # API Gateway
+  - type: web
+    name: propdf-api-gateway
+    env: docker
+    dockerContext: .
+    dockerfilePath: api-gateway/Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: PDF_SERVICE_URL
+        fromService:
+          name: propdf-pdf-service
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: IMAGE_SERVICE_URL
+        fromService:
+          name: propdf-image-service
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: FRONTEND_URL
+        fromService:
+          name: propdf-frontend
+          type: static
+          envVarKey: RENDER_EXTERNAL_URL
+      # In Render internal networking, you could also use internal addresses if supported on free tier, 
+      # but external URL is safest for cross-service comms if on different nodes. 
+      # Better: use service names if they are in the same private network (paid feature usually), 
+      # but for free tier let's stick to public URLs or the service name DNS provided by Render.
+    healthCheckPath: /health
+
+  # Frontend
+  - type: static
+    name: propdf-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: propdf-api-gateway
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
