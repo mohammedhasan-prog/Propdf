@@ -3,7 +3,7 @@ services:
   - type: web
     name: propdf-pdf-service
     env: docker
-    dockerContext: .
+    dockerContext: pdf-service
     dockerfilePath: pdf-service/Dockerfile
     plan: free
     autoDeploy: true
@@ -16,7 +16,7 @@ services:
   - type: web
     name: propdf-image-service
     env: docker
-    dockerContext: .
+    dockerContext: image-service
     dockerfilePath: image-service/Dockerfile
     plan: free
     autoDeploy: true
@@ -29,7 +29,7 @@ services:
   - type: web
     name: propdf-api-gateway
     env: docker
-    dockerContext: .
+    dockerContext: api-gateway
     dockerfilePath: api-gateway/Dockerfile
     plan: free
     autoDeploy: true
