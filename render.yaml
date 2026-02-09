@@ -58,11 +58,11 @@ services:
     healthCheckPath: /health
 
   # Frontend
-  - type: static
+  - type: web
     name: propdf-frontend
-    env: static
+    env: node
     buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    startCommand: cd frontend && npx serve -s dist -l $PORT
     plan: free
     autoDeploy: true
     envVars:
@@ -71,3 +71,6 @@ services:
           name: propdf-api-gateway
           type: web
           envVarKey: RENDER_EXTERNAL_URL
+      - key: PORT
+        value: "10000"
+    healthCheckPath: /

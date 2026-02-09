@@ -16,7 +16,8 @@
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",
     "simplex-noise": "^4.0.3",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "serve": "^14.2.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.48",
