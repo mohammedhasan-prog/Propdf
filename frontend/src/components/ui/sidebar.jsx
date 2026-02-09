@@ -75,13 +75,14 @@ export const MobileSidebar = ({ className, children, ...props }) => {
     <>
       <div
         className={cn(
-          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-slate-900/80 backdrop-blur-xl w-full border-b border-white/10"
+          "h-14 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-slate-900/90 backdrop-blur-xl w-full border-b border-white/10 sticky top-0 z-[60]"
         )}
         {...props}
       >
-        <div className="flex justify-end z-20 w-full">
+        <div className="text-white font-bold text-lg">ProPDF</div>
+        <div className="flex justify-end z-20">
           <IconMenu2
-            className="text-white cursor-pointer"
+            className="text-white cursor-pointer h-7 w-7"
             onClick={() => setOpen(!open)}
           />
         </div>
@@ -96,17 +97,19 @@ export const MobileSidebar = ({ className, children, ...props }) => {
                 ease: "easeInOut",
               }}
               className={cn(
-                "fixed h-full w-full inset-0 bg-slate-900 p-10 z-[100] flex flex-col justify-between",
+                "fixed h-full w-full inset-0 bg-slate-900/95 backdrop-blur-md p-6 z-[100] flex flex-col pt-20",
                 className
               )}
             >
               <div
-                className="absolute right-10 top-10 z-50 text-white cursor-pointer"
+                className="absolute right-6 top-5 z-[101] text-white cursor-pointer p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
                 onClick={() => setOpen(!open)}
               >
-                <IconX />
+                <IconX className="h-6 w-6" />
               </div>
-              {children}
+              <div className="overflow-y-auto flex-1">
+                {children}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
