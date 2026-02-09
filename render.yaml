@@ -49,7 +49,7 @@ services:
       - key: FRONTEND_URL
         fromService:
           name: propdf-frontend
-          type: static
+          type: web
           envVarKey: RENDER_EXTERNAL_URL
       # In Render internal networking, you could also use internal addresses if supported on free tier, 
       # but external URL is safest for cross-service comms if on different nodes. 
