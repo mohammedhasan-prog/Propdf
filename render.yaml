@@ -83,14 +83,6 @@ services:
     dockerfilePath: email-service/Dockerfile
     plan: free
     autoDeploy: true
-    envVars:
-      - key: GMAIL_CLIENT_ID
-        sync: false
-      - key: GMAIL_CLIENT_SECRET
-        sync: false
-      - key: GMAIL_REFRESH_TOKEN
-        sync: false
-      - key: GMAIL_USER
-        sync: false
     healthCheckPath: /health
+
 
