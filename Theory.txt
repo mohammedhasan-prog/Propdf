@@ -245,6 +245,21 @@ User uploads 100MB PDF
 ### Docker Compose (Development)
 What we use. Good for local development and testing.
 
+### Email Service (Gmail API)
+- **Role**: Converting emailed images to PDF
+- **Tech**: Node.js, Gmail API, Nodemailer, Mailparser, OAuth2
+- **Flow**:
+  1. Authenticates via OAuth2 (credentials.json + token.json)
+  2. Polls Gmail API for unread emails (HTTPS port 443)
+  3. Parses attachments (JPG/PNG)
+  4. Converts images to PDF using pdf-lib
+  5. Replies to sender with PDF attached
+- **Advantages over IMAP**:
+  - Uses HTTPS (rarely blocked by firewalls)
+  - More reliable API access
+  - Better authentication with OAuth2
+  - No port 993 connection issues
+
 ### Kubernetes (Production)
 - Automatic scaling based on load
 - Self-healing (restarts crashed containers)
