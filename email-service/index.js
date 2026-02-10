@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const simpleParser = require('mailparser').simpleParser;
 const MailComposer = require('nodemailer/lib/mail-composer');
 const { PDFDocument } = require('pdf-lib');
+const http = require('http');
 require('dotenv').config();
 
 const CHECK_INTERVAL = 10000; // 10 seconds
@@ -206,11 +207,22 @@ async function processEmails() {
 async function startService() {
   console.log('🚀 Starting Email Service with Gmail API...\n');
 
+  // Health check server for Render
+  const PORT = process.env.PORT || 4003;
+  http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', service: 'email-service' }));
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('Email Service Running');
+    }
+  }).listen(PORT, () => console.log(`Health check server on port ${PORT}`));
+
   gmailClient = await authorize();
 
   if (!gmailClient) {
     console.log('⏸️  Service paused. Set environment variables first.');
-    setInterval(() => {}, 1000 * 60 * 60);
     return;
   }
 

@@ -75,8 +75,8 @@ services:
         value: "10000"
     healthCheckPath: /
 
-  # Email Service (Background Worker - polls Gmail)
-  - type: worker
+  # Email Service (polls Gmail for image-to-PDF conversion)
+  - type: web
     name: propdf-email-service
     env: docker
     dockerContext: email-service
@@ -92,3 +92,5 @@ services:
         sync: false
       - key: GMAIL_USER
         sync: false
+    healthCheckPath: /health
+
